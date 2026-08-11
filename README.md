@@ -68,7 +68,7 @@ npm install   # dev-only: tsx
 npm test
 ```
 
-22 unit tests, running on bare Node through the zero-dependency harness in
+33 unit tests, running on bare Node through the zero-dependency harness in
 `test/run.ts` — including the frozen STD-001 sighash vector and the 1Sat
 envelope rules.
 

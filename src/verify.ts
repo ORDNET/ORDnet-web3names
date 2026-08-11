@@ -12,6 +12,7 @@
  */
 
 import type { CryptoDeps, ResolveAnswer } from './types'
+import { parseWeb3Name } from './names'
 
 const SEP = 0x1f
 const DOMAIN_TAG = 'ORDNS-RESOLVE'
@@ -52,15 +53,51 @@ export interface VerifyOptions {
   /** Pinned resolver key. The answer's own signer field is never the authority. */
   resolverPubKey: string
   nowSeconds?: number
+  /**
+   * The address that was actually requested. Required: a signature covers the
+   * answer's OWN name, so without this there is nothing to bind the answer to
+   * and verification cannot mean anything.
+   */
+  expectName: string
 }
 
 export type VerifyVerdict =
   | { valid: true }
-  | { valid: false, reason: 'expired' | 'bad_signature' | 'unknown_signer' }
+  | { valid: false, reason: 'expired' | 'bad_signature' | 'unknown_signer' | 'not_ok' | 'malformed' | 'no_expected_name' | 'name_mismatch' | 'mailbox_mismatch' }
 
-/** Level 2 verification: signature + expiry against the pinned key. */
+/**
+ * Level 2 verification: the answer answers the question that was asked, it
+ * says it succeeded, it has not expired, and it is signed by the pinned key —
+ * in that order.
+ *
+ * The binding is the part that is easy to leave out and expensive to omit. A
+ * correctly signed, unexpired answer for attacker.web3 is still a valid
+ * signature; only comparing it against what the caller asked for makes it an
+ * answer. Without that, any cache, proxy or relay in the path is a
+ * substitution point.
+ */
 export function verifyAnswer (a: ResolveAnswer, deps: CryptoDeps, opts: VerifyOptions): VerifyVerdict {
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000)
+
+  if (a == null || typeof a !== 'object') return { valid: false, reason: 'malformed' }
+  if ((a as any).ok !== true) return { valid: false, reason: 'not_ok' }
+
+  if (typeof opts.expectName !== 'string' || opts.expectName === '') {
+    return { valid: false, reason: 'no_expected_name' }
+  }
+  const asked = parseWeb3Name(opts.expectName)
+  if (!asked) return { valid: false, reason: 'no_expected_name' }
+  if (a.name !== asked.name) return { valid: false, reason: 'name_mismatch' }
+  const answeredMailbox = a.mailbox == null ? null : String(a.mailbox)
+  // A mailbox question may be answered by the domain holder, but only when the
+  // resolver declares it as a fallback (ODNCA-STD-001 §5).
+  if (asked.mailbox !== null && answeredMailbox !== asked.mailbox && a.fallback !== true) {
+    return { valid: false, reason: 'mailbox_mismatch' }
+  }
+  if (asked.mailbox === null && answeredMailbox !== null && answeredMailbox !== '') {
+    return { valid: false, reason: 'mailbox_mismatch' }
+  }
+
   if (a.expires <= now) return { valid: false, reason: 'expired' }
   if (a.signer && a.signer !== opts.resolverPubKey) return { valid: false, reason: 'unknown_signer' }
   const ok = deps.ecdsaVerifyDer(sighashOf(a, deps), a.sig, opts.resolverPubKey)
