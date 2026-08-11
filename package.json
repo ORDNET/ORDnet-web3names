@@ -1,0 +1,20 @@
+{
+  "name": "@ordnet/web3names",
+  "version": "1.0.0",
+  "description": "Verified on-chain web3 name resolution (SNS / ODNCA-STD-001) for browsers and wallets — parse, resolve, verify, prove.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "tsx test/run.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ORDNET/ORDnet-web3names.git"
+  },
+  "keywords": ["bsv", "sns", "web3", "domains", "ordinals", "odnca", "resolver"],
+  "author": "ORDnet / ODNCA",
+  "license": "MIT",
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
