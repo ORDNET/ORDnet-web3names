@@ -98,7 +98,12 @@ export function verifyAnswer (a: ResolveAnswer, deps: CryptoDeps, opts: VerifyOp
     return { valid: false, reason: 'mailbox_mismatch' }
   }
 
-  if (a.expires <= now) return { valid: false, reason: 'expired' }
+  // Every non-numeric value makes this comparison false, so a missing, NaN or
+  // string `expires` used to mean "never expires" — on a field the whole
+  // freshness model rests on. A resolver could sign an eternally valid answer
+  // by omitting it. Numeric-and-finite is now a precondition, not an
+  // assumption.
+  if (!Number.isFinite(a.expires) || a.expires <= now) return { valid: false, reason: 'expired' }
   if (a.signer && a.signer !== opts.resolverPubKey) return { valid: false, reason: 'unknown_signer' }
   const ok = deps.ecdsaVerifyDer(sighashOf(a, deps), a.sig, opts.resolverPubKey)
   return ok ? { valid: true } : { valid: false, reason: 'bad_signature' }

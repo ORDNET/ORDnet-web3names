@@ -1,10 +1,12 @@
 {
   "name": "@ordnet/web3names",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Verified on-chain web3 name resolution (SNS / ODNCA-STD-001) for browsers and wallets — parse, resolve, verify, prove.",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "test": "tsx test/run.ts"
   },
   "repository": {
@@ -23,6 +25,29 @@
   "author": "ORDnet / ODNCA",
   "license": "MIT",
   "devDependencies": {
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@bsv/sdk": "^1.1.0"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "peerDependencies": {
+    "@bsv/sdk": ">=1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@bsv/sdk": {
+      "optional": true
+    }
   }
 }

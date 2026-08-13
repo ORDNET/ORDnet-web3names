@@ -98,6 +98,35 @@ describe('verify (ODNCA-STD-001 §6)', () => {
  * unless the caller states what it asked for. Every cache, proxy or relay
  * in the path is otherwise a substitution point.
  * ------------------------------------------------------------------ */
+describe('verify / expiry actually expires', () => {
+  // `a.expires <= now` is false for every non-numeric value, so a missing,
+  // NaN or string expires meant "never expires" — with a valid signature
+  // over it. The whole freshness model rests on this one field.
+  const YEAR_2100 = 4102444800
+  const opts = { resolverPubKey: vector.signer, nowSeconds: YEAR_2100, expectName: ASK }
+
+  for (const [label, value] of [
+    ['missing', undefined],
+    ['null', null],
+    ['NaN', NaN],
+    ['a string', 'not-a-number'],
+    ['an object', {}],
+    ['Infinity', Infinity],
+    ['a numeric string', '9999999999']
+  ] as Array<[string, any]>) {
+    it(`rejects ${label} expires as expired`, () => {
+      const a: any = { ...vector }
+      if (value === undefined) delete a.expires; else a.expires = value
+      expect(verifyAnswer(a, deps, opts)).toEqual({ valid: false, reason: 'expired' })
+    })
+  }
+
+  it('a genuine future timestamp still verifies', () => {
+    const verdict = verifyAnswer(vector, deps, { ...opts, nowSeconds: vector.expires - 1 })
+    expect((verdict as any).reason).not.toBe('expired')
+  })
+})
+
 describe('verify / answer binding', () => {
   const fresh = { resolverPubKey: vector.signer, nowSeconds: 0 }
 
@@ -228,14 +257,55 @@ describe('openWeb3Site helpers', () => {
 
 
 describe('tld refresh guards', () => {
+  // The gate is an ALLOWLIST. It was a denylist of 32 entries, which is no
+  // defence at all against ~1500 delegated gTLDs: a hostile /health could add
+  // `bank`, `shop`, `online`, `email` or `be` and the address bar would
+  // intercept real web2 domains — permanently, since the pollution survived a
+  // refresh. A resolver can now only CONFIRM what this build already ships.
+
   it('refuses web2 TLDs and junk shapes from a hostile /health', async () => {
     const { refreshTlds, isKnownTld } = await import('../src/tlds')
-    const hostile = async () => ({ ok: true, json: async () => ({ tlds: ['com', 'ORG', 'x', 'evil$', 'sats'], retired_tlds: [] }) }) as any
+    const hostile = async () => ({ ok: true, json: async () => ({ tlds: ['com', 'ORG', 'x', 'evil$'], retired_tlds: [] }) }) as any
     await refreshTlds('https://x', 0, hostile as any)
     expect(isKnownTld('com')).toBe(false)
     expect(isKnownTld('org')).toBe(false)
-    expect(isKnownTld('sats')).toBe(true)
     expect(isKnownTld('web3')).toBe(true)
+  })
+
+  it('refuses the regulated and popular gTLDs a denylist of 32 would have missed', async () => {
+    const { refreshTlds, isKnownTld } = await import('../src/tlds')
+    // Every one of these was accepted before, and .bank is a strictly
+    // regulated gTLD — intercepting it is the exact harm this file exists
+    // to prevent.
+    const targets = ['bank', 'shop', 'online', 'email', 'be', 'insurance', 'pharmacy', 'law', 'health', 'finance']
+    const hostile = async () => ({ ok: true, json: async () => ({ tlds: targets, retired_tlds: [] }) }) as any
+    await refreshTlds('https://x', 0, hostile as any)
+    for (const t of targets) expect(isKnownTld(t)).toBe(false)
+  })
+
+  it('a resolver cannot invent a new web3 TLD either', async () => {
+    const { refreshTlds, isKnownTld } = await import('../src/tlds')
+    // Shape-valid and not a web2 name, so the old filter let it through.
+    // Adding a genuine TLD now requires a release of this module.
+    const hostile = async () => ({ ok: true, json: async () => ({ tlds: ['sats', 'metanet'], retired_tlds: [] }) }) as any
+    await refreshTlds('https://x', 0, hostile as any)
+    expect(isKnownTld('sats')).toBe(false)
+    expect(isKnownTld('metanet')).toBe(false)
+  })
+
+  it('a refresh can never remove a shipped TLD', async () => {
+    const { refreshTlds, isKnownTld, SNAPSHOT_TLDS } = await import('../src/tlds')
+    const empty = async () => ({ ok: true, json: async () => ({ tlds: [], retired_tlds: [] }) }) as any
+    await refreshTlds('https://x', 0, empty as any)
+    for (const t of SNAPSHOT_TLDS) expect(isKnownTld(t)).toBe(true)
+  })
+
+  it('confirms shipped TLDs that the resolver does report', async () => {
+    const { refreshTlds, isKnownTld } = await import('../src/tlds')
+    const good = async () => ({ ok: true, json: async () => ({ tlds: ['web3', 'ordnet'], retired_tlds: ['bsv'] }) }) as any
+    await refreshTlds('https://x', 0, good as any)
+    expect(isKnownTld('web3')).toBe(true)
+    expect(isKnownTld('bsv')).toBe(true)
   })
 })
 
