@@ -1,5 +1,11 @@
 # ORDnet-web3names
 
+[![tests](https://github.com/ORDNET/ORDnet-web3names/actions/workflows/test.yml/badge.svg)](https://github.com/ORDNET/ORDnet-web3names/actions/workflows/test.yml)
+[![test count](https://img.shields.io/badge/tests-45_passing-2b8a3e?style=flat-square)](#tests)
+[![language](https://img.shields.io/badge/TypeScript-plain,_zero_runtime_deps-364fc7?style=flat-square)](#files)
+[![standard](https://img.shields.io/badge/implements-ODNCA--STD--001-5f3dc4?style=flat-square)](https://github.com/ORDNET/ODNCA-standards)
+[![license](https://img.shields.io/badge/license-MIT-6a737d?style=flat-square)](LICENSE)
+
 Verified on-chain name resolution for browsers and wallets: type
 `earthlog.web3` (or pay `info@earthlog.web3`) and land on the name's
 on-chain site — with every answer independently verified, never trusted.
@@ -19,6 +25,13 @@ wallet, or application that wants to support web3 names.
   reproduced bit-exact in the test suite.
 
 ## Trust model — "don't trust us, recompute us"
+
+```mermaid
+flowchart LR
+    ANSWER["1 · Answer<br/>resolver signature<br/>pinned key"] --> LIVE["2 · Liveness<br/>outpoint unspent"]
+    LIVE --> CONTENT["3 · Content<br/>raw tx hashes to<br/>the signed txid"]
+    CONTENT --> CANON["4 · Canonicity<br/>merkle fold to the<br/>on-chain committed root"]
+```
 
 | Layer | What is checked | Enforced in |
 |---|---|---|
@@ -51,7 +64,7 @@ normal URL pass through untouched.
 ## Files
 
 - `src/names.ts` — address parsing/normalization (STD-001 §4; non-ASCII = exact bytes)
-- `src/tlds.ts` — built-in TLD snapshot + live refresh from resolver `/health` (with web2-blocklist and shape guards)
+- `src/tlds.ts` — built-in TLD snapshot + live refresh from resolver `/health` (TLD allowlist per v1.2.0: a refresh can confirm or retire shipped TLDs, never add or remove — plus shape guards)
 - `src/resolve.ts` — one-GET transport to any conformant resolver
 - `src/verify.ts` — the signature scheme; frozen conformance vector reproduced in tests
 - `src/liveness.ts` — the unspent check (STD-001 verification level 3)
@@ -63,9 +76,10 @@ normal URL pass through untouched.
 
 ## Tests
 
-```
+```bash
 npm install   # dev-only: tsx
 npm test
+# -> RESULT: 45 passed, 0 failed
 ```
 
 45 unit tests, running on bare Node through the zero-dependency harness in
